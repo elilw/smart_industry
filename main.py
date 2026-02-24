@@ -2,8 +2,8 @@ import time
 import pvlib
 import datetime
 import pandas as pd
-import ... # TODO - Pyhton script that contains configuration info of influx
-import ... # TODO - Pyhton script that contains configuration info of the PhotoVoltaic cells
+import influx_config # TODO - Pyhton script that contains configuration info of influx
+import pv_system_config # TODO - Pyhton script that contains configuration info of the PhotoVoltaic cells
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -19,10 +19,24 @@ def _get_specific_data(full_data, current_time, prev_time_data, prev_data):
         prev_time_data = current_time.replace(hour=current_time.hour-1)
 
     # TODO - Return closest data, in 30min intervals, to the requested date after prev_data
+
+    # Filter data after prev_time_data
+    future_data = full_data[full_data.index > prev_time_data]
+
+    # Get the closest row to current_time
+    closest_idx = future_data.index.get_indexer([current_time], method='nearest')[0]
+    closest_row = future_data.iloc[closest_idx]
+
+    specific_data = closest_row.to_dict()
+    prev_time_data = closest_row.name  # the DateTime index of that row
+    
+"""
     specific_data = {'CodiEstacio': 'XV', 'RelativeHumidityMax': 83.0, 'Wind': 2.2, 'WindDirection': 141.0,
                      'Temperature': 17.5, 'RelativeHumidity': 80.0, 'Rain': 0.0, 'Irradiance': 203.0,
                      'TemperatureMax': 18.2, 'TemperatureMin': 17.0, 'RelativeHumidityMin': 76.0,
                      'WindGust': 5.4, 'WindDirectionGust': 163.0, 'RainMax': 0.0}
+"""
+
     return specific_data, prev_time_data
 
 
@@ -37,23 +51,23 @@ def _get_pv_structure(scenario_configuration, pv_module, modules_line, columns_a
 
 def _get_effective_irradiance(scenario_config, solar_position, meteo_data):
     # TODO - Substitute ... to the name of the column that contains Irradiance
-    if meteo_data[...] != 0:
+    if meteo_data["NetIrradiance"] != 0:
         aoi_scenario = pvlib.irradiance.aoi(surface_tilt=scenario_config['tilt'], surface_azimuth=scenario_config['orientation'],
                                             solar_zenith=solar_position.apparent_zenith, solar_azimuth=solar_position.azimuth)
         iam_scenario = pvlib.iam.ashrae(aoi=aoi_scenario)
-        effective_irradiance = meteo_data[...]*iam_scenario
+        effective_irradiance = meteo_data['NetIrradiance']*iam_scenario
 
     else:
-        effective_irradiance = meteo_data[...]
+        effective_irradiance = meteo_data['NetIrradiance']
 
     return effective_irradiance
 
 
 def _get_temperature_cell(meteo_data):
     # TODO - This function requires Irradiance, Air Temperature and Wind Speed information.
-    temp_cell = pvlib.temperature.faiman(meteo_data[...],
-                                         meteo_data[...],
-                                         meteo_data[...])
+    temp_cell = pvlib.temperature.faiman(meteo_data['NetIrradiance'],
+                                         meteo_data['Temperature'],
+                                         meteo_data['WindSpeed_2m'])
     return temp_cell
 
 
@@ -89,10 +103,10 @@ def _request_meteodata(_folder_data):
 
     meteocat_df = pd.read_csv(_folder_data + 'meteo_full_df.csv', sep=';')
     # TODO -  Subtitute ... for Date Time column
-    meteocat_df[...] = meteocat_df[...].apply(lambda x: pd.to_datetime(x, utc=True, format=data_format) + datetime.timedelta(minutes=30))
+    meteocat_df['DateTime'] = meteocat_df['DateTime'].apply(lambda x: pd.to_datetime(x, utc=True, format=data_format) + datetime.timedelta(minutes=30))
     # TODO -  Subtitute ... for Irradiance column
-    meteocat_df[...] = meteocat_df[...].apply(lambda x: 0. if x < 0. else x)
-    meteocat_df.set_index(..., inplace=True)
+    meteocat_df['NetIrradiance'] = meteocat_df['NetIrradiance'].apply(lambda x: 0. if x < 0. else x)
+    meteocat_df.set_index('NetIrradiance', inplace=True)
 
     return meteocat_df
 
@@ -107,7 +121,7 @@ def _send_energy_to_influx_db(influx_conf, write_api, tag_id, report):
 def _get_influx_db(influx_conf):
     # TODO - Correct port
     try:
-        client = InfluxDBClient(url="http://localhost:...", token=influx_conf['influx_token'], org=influx_conf['influx_org'])
+        client = InfluxDBClient(url="http://localhost:" + influx_config['influx_port'], token=influx_conf['influx_token'], org=influx_conf['influx_org'])
     except:
         client = None
     return client
@@ -141,7 +155,7 @@ def main():
         solarpos_UAB = _get_solarposition(scenario_location=location_UAB, current_time=current_time)
 
         # TODO -  Subtitute ... for Irradiance column
-        if meteo_specific_UAB is not None and meteo_specific_UAB[...] != 0:
+        if meteo_specific_UAB is not None and meteo_specific_UAB['NetIrradiance'] != 0:
             effective_irradiance_UAB = _get_effective_irradiance(scenario_config=UAB_config,
                                                                  solar_position=solarpos_UAB,
                                                                  meteo_data=meteo_specific_UAB)

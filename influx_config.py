@@ -1,7 +1,7 @@
 influx_db_config = {
     "broker_id": "",
     "influx_host": ...,
-    "influx_port": ...,
+    "influx_port": 8086,
     "influx_user": "admin",
     "influx_password": ...,
     "influx_database": ...,
