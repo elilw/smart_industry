@@ -31,7 +31,7 @@ services:
 
 networks:
   default:
-    name: solar_viz_net
+    name: smart_industry
     external: true
 
 volumes:

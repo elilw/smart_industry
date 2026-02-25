@@ -29,13 +29,6 @@ def _get_specific_data(full_data, current_time, prev_time_data, prev_data):
 
     specific_data = closest_row.to_dict()
     prev_time_data = closest_row.name  # the DateTime index of that row
-    
-"""
-    specific_data = {'CodiEstacio': 'XV', 'RelativeHumidityMax': 83.0, 'Wind': 2.2, 'WindDirection': 141.0,
-                     'Temperature': 17.5, 'RelativeHumidity': 80.0, 'Rain': 0.0, 'Irradiance': 203.0,
-                     'TemperatureMax': 18.2, 'TemperatureMin': 17.0, 'RelativeHumidityMin': 76.0,
-                     'WindGust': 5.4, 'WindDirectionGust': 163.0, 'RainMax': 0.0}
-"""
 
     return specific_data, prev_time_data
 
@@ -112,10 +105,13 @@ def _request_meteodata(_folder_data):
 
 
 def _send_energy_to_influx_db(influx_conf, write_api, tag_id, report):
-    # TODO - Write (DC and AC production) to InfluxDB, in an appropiate _mesurement, _field and ID
-    # TODO - Optionally indicate the correct type for the values to the DB
-    point_to_store = (...)
-    write_api.(...)
+    point_to_store = (
+        Point("pv_production")
+        .tag("ID", tag_id)
+        .field("energyDCProduction", float(report['energyDCProduction']))
+        .field("energyACProduction", float(report['energyACProduction']))
+    )
+    write_api.write(bucket=influx_conf['influx_database'], org=influx_conf['influx_org'], record=point_to_store)
 
 
 def _get_influx_db(influx_conf):
